@@ -5,7 +5,8 @@ import pandas as pd
 import tiktoken
 import nltk
 from openai import OpenAI
-from difflib import SequenceMatcher # Although imported in original, not used, but kept for fidelity.
+# Although imported in original, not used, but kept for fidelity.
+from difflib import SequenceMatcher
 
 # Download NLTK data if not already present
 try:
@@ -77,13 +78,15 @@ TRANSCRIPT:
 
 # --- Utility Functions ---
 
-def get_estimated_api_cost(prompt_tokens: int, completion_tokens: int, 
-                           input_cost_per_million: float = 2.50, 
+
+def get_estimated_api_cost(prompt_tokens: int, completion_tokens: int,
+                           input_cost_per_million: float = 2.50,
                            output_cost_per_million: float = 10.00) -> float:
     """Calculates the estimated cost for an LLM API call."""
     cost = (prompt_tokens * input_cost_per_million / 1_000_000) + \
            (completion_tokens * output_cost_per_million / 1_000_000)
     return cost
+
 
 def setup_transcript_files(base_path: str = 'transcripts') -> None:
     """
@@ -133,7 +136,8 @@ def load_transcripts_data(transcript_names: list[str], base_path: str = 'transcr
         dict[str, str]: A dictionary where keys are transcript names and values are their content.
     """
     transcripts = {}
-    enc = tiktoken.encoding_for_model("gpt-4o") # Assuming a common model for token counting
+    # Assuming a common model for token counting
+    enc = tiktoken.encoding_for_model("gpt-4o")
     input_cost_per_million = 2.50
 
     print("\n--- Loading Transcripts ---")
@@ -149,8 +153,10 @@ def load_transcripts_data(transcript_names: list[str], base_path: str = 'transcr
             print(f"  Words: {len(text.split()):,}")
             print(f"  Tokens: {len(tokens):,}")
 
-            estimated_input_cost = (len(tokens) * input_cost_per_million) / 1_000_000
-            print(f"  Estimated input cost (input @ ${input_cost_per_million:.2f}/1M): ${estimated_input_cost:.4f}")
+            estimated_input_cost = (
+                len(tokens) * input_cost_per_million) / 1_000_000
+            print(
+                f"  Estimated input cost (input @ ${input_cost_per_million:.2f}/1M): ${estimated_input_cost:.4f}")
 
             transcripts[company] = text
         except FileNotFoundError:
@@ -161,6 +167,7 @@ def load_transcripts_data(transcript_names: list[str], base_path: str = 'transcr
     return transcripts
 
 # --- LLM Interaction Functions ---
+
 
 def explain_financial_concept(client: OpenAI, concept_query: str, model: str = 'gpt-4o') -> str:
     """
@@ -187,6 +194,7 @@ def explain_financial_concept(client: OpenAI, concept_query: str, model: str = '
     )
     return response.choices[0].message.content
 
+
 def summarize_naive(client: OpenAI, transcript: str, model: str = 'gpt-4o') -> str:
     """
     Summarizes a transcript using a naive prompting strategy.
@@ -199,7 +207,8 @@ def summarize_naive(client: OpenAI, transcript: str, model: str = 'gpt-4o') -> s
     Returns:
         str: The LLM's naive summary.
     """
-    messages = [{"role": "user", "content": PROMPT_NAIVE.format(transcript=transcript)}]
+    messages = [
+        {"role": "user", "content": PROMPT_NAIVE.format(transcript=transcript)}]
 
     response = client.chat.completions.create(
         model=model,
@@ -208,6 +217,7 @@ def summarize_naive(client: OpenAI, transcript: str, model: str = 'gpt-4o') -> s
         max_tokens=500
     )
     return response.choices[0].message.content
+
 
 def summarize_with_strategy(client: OpenAI, transcript: str, strategy: str = 'structured', model: str = 'gpt-4o') -> tuple[str, dict]:
     """
@@ -225,19 +235,23 @@ def summarize_with_strategy(client: OpenAI, transcript: str, strategy: str = 'st
     """
     messages = []
     if strategy == 'naive':
-        messages = [{"role": "user", "content": PROMPT_NAIVE.format(transcript=transcript)}]
+        messages = [
+            {"role": "user", "content": PROMPT_NAIVE.format(transcript=transcript)}]
     elif strategy == 'structured':
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": TASK_PROMPT.format(transcript=transcript)}
+            {"role": "user", "content": TASK_PROMPT.format(
+                transcript=transcript)}
         ]
     elif strategy == 'few_shot':
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": FEW_SHOT_EXAMPLE + "\nNow summarize the following transcript in the same format:\n" + TASK_PROMPT.format(transcript=transcript)}
+            {"role": "user", "content": FEW_SHOT_EXAMPLE +
+                "\nNow summarize the following transcript in the same format:\n" + TASK_PROMPT.format(transcript=transcript)}
         ]
     else:
-        raise ValueError("Invalid strategy. Choose 'naive', 'structured', or 'few_shot'.")
+        raise ValueError(
+            "Invalid strategy. Choose 'naive', 'structured', or 'few_shot'.")
 
     response = client.chat.completions.create(
         model=model,
@@ -245,7 +259,11 @@ def summarize_with_strategy(client: OpenAI, transcript: str, strategy: str = 'st
         temperature=0.3,
         max_tokens=2000
     )
+
+    # Debugging: print token usage for this call
+    print(response.usage.to_dict())
     return response.choices[0].message.content, response.usage.to_dict()
+
 
 def chunk_transcript(transcript: str, max_chunk_tokens: int = 8000, model: str = 'gpt-4o') -> list[tuple[str, str]]:
     """
@@ -268,16 +286,17 @@ def chunk_transcript(transcript: str, max_chunk_tokens: int = 8000, model: str =
             return [(label, text)]
 
         sentences = nltk.sent_tokenize(text)
-        if not sentences: # Handle empty text
+        if not sentences:  # Handle empty text
             return []
-        
+
         # Try to split by paragraph/double newline first
         paragraphs = text.split('\n\n')
         if len(paragraphs) > 1:
             mid_para = len(paragraphs) // 2
             part1 = '\n\n'.join(paragraphs[:mid_para])
             part2 = '\n\n'.join(paragraphs[mid_para:])
-            if enc.encode(part1) and enc.encode(part2): # Ensure parts are not empty after split
+            # Ensure parts are not empty after split
+            if enc.encode(part1) and enc.encode(part2):
                 return split_if_needed(part1, f'{label}_part1') + split_if_needed(part2, f'{label}_part2')
 
         # Fallback to splitting by sentence if paragraphs don't work or are too large
@@ -285,9 +304,10 @@ def chunk_transcript(transcript: str, max_chunk_tokens: int = 8000, model: str =
         part1 = " ".join(sentences[:mid])
         part2 = " ".join(sentences[mid:])
 
-        if not part1.strip() or not part2.strip(): # Avoid infinite recursion with single large sentence
-             # If a single sentence exceeds max_chunk_tokens, we can't split further
-            print(f"Warning: A single sentence/paragraph in '{label}' exceeds max_chunk_tokens ({max_chunk_tokens}). This chunk will be oversized.")
+        if not part1.strip() or not part2.strip():  # Avoid infinite recursion with single large sentence
+            # If a single sentence exceeds max_chunk_tokens, we can't split further
+            print(
+                f"Warning: A single sentence/paragraph in '{label}' exceeds max_chunk_tokens ({max_chunk_tokens}). This chunk will be oversized.")
             return [(label, text)]
 
         return split_if_needed(part1, f'{label}_part1') + split_if_needed(part2, f'{label}_part2')
@@ -314,6 +334,7 @@ def chunk_transcript(transcript: str, max_chunk_tokens: int = 8000, model: str =
 
     return chunks
 
+
 def hierarchical_summarize(client: OpenAI, transcript: str, model: str = 'gpt-4o') -> str:
     """
     Summarize a long transcript by section, then merge into a final summary.
@@ -331,7 +352,8 @@ def hierarchical_summarize(client: OpenAI, transcript: str, model: str = 'gpt-4o
 
     for label, chunk in chunks:
         print(f"\nSummarizing: {label}...")
-        summary, _ = summarize_with_strategy(client, chunk, strategy='structured', model=model)
+        summary, _ = summarize_with_strategy(
+            client, chunk, strategy='structured', model=model)
         section_summaries.append((label, summary))
 
     merge_prompt = f"""You are given summaries of different sections of an earnings call. Merge them into a single coherent analyst brief following the standard format (Headline, Performance, Guidance, Q&A, Risks, Tone). Remove redundancies and ensure consistency.
@@ -350,6 +372,7 @@ Section summaries:
     )
     return response.choices[0].message.content
 
+
 def extract_metrics(client: OpenAI, transcript: str, model: str = 'gpt-4o') -> dict:
     """
     Extracts structured financial metrics from a transcript as a JSON object.
@@ -366,7 +389,8 @@ def extract_metrics(client: OpenAI, transcript: str, model: str = 'gpt-4o') -> d
         model=model,
         messages=[
             {"role": "system", "content": "You are a financial data extractor. Return only valid JSON."},
-            {"role": "user", "content": EXTRACTION_PROMPT.format(transcript=transcript)}
+            {"role": "user", "content": EXTRACTION_PROMPT.format(
+                transcript=transcript)}
         ],
         temperature=0.0,
         response_format={"type": "json_object"},
@@ -374,6 +398,7 @@ def extract_metrics(client: OpenAI, transcript: str, model: str = 'gpt-4o') -> d
     )
     metrics = json.loads(response.choices[0].message.content)
     return metrics
+
 
 def hallucination_audit(summary: str, transcript: str) -> tuple[dict, float]:
     """
@@ -394,20 +419,26 @@ def hallucination_audit(summary: str, transcript: str) -> tuple[dict, float]:
     clean_transcript = transcript.replace(',', '').replace('$', '').lower()
 
     # Find numbers and numerical phrases in summary
-    summary_numbers = re.findall(r'\$?[\d,]+\.?\d*(?:[BMK%]| billion| million| trillion)?', summary, re.IGNORECASE)
+    summary_numbers = re.findall(
+        r'\$?[\d,]+\.?\d*(?:[BMK%]| billion| million| trillion)?', summary, re.IGNORECASE)
 
     for num in summary_numbers:
-        clean_num = num.replace(',', '').replace('$', '').replace(' percent', '%').lower()
+        clean_num = num.replace(',', '').replace(
+            '$', '').replace(' percent', '%').lower()
 
         if num.lower() in transcript.lower():
-            audit_results['verified'].append(f"VERIFIED: '{num}' found directly in transcript")
+            audit_results['verified'].append(
+                f"VERIFIED: '{num}' found directly in transcript")
         elif clean_num in clean_transcript:
-            audit_results['verified'].append(f"VERIFIED (format diff): '{num}' found as '{clean_num}' in transcript")
+            audit_results['verified'].append(
+                f"VERIFIED (format diff): '{num}' found as '{clean_num}' in transcript")
         else:
-            audit_results['flagged'].append(f"FLAGGED: '{num}' NOT found in transcript")
+            audit_results['flagged'].append(
+                f"FLAGGED: '{num}' NOT found in transcript")
 
     # Check for guidance terms that might be fabricated
-    guidance_terms = ['raised', 'lowered', 'maintained', 'introduced', 'increased', 'decreased', 'revised']
+    guidance_terms = ['raised', 'lowered', 'maintained',
+                      'introduced', 'increased', 'decreased', 'revised']
     summary_lower = summary.lower()
     transcript_lower = transcript.lower()
 
@@ -416,16 +447,21 @@ def hallucination_audit(summary: str, transcript: str) -> tuple[dict, float]:
             # Simple check: if a guidance term appears in summary but not at all in transcript, it's suspicious
             # This is a crude check and might flag valid inferences
             if term not in transcript_lower:
-                audit_results['flagged'].append(f"FLAGGED: Summary uses guidance term '{term}' but it's absent from transcript (may be inferred).")
+                audit_results['flagged'].append(
+                    f"FLAGGED: Summary uses guidance term '{term}' but it's absent from transcript (may be inferred).")
 
     # Check for presence of key sections/topics for completeness
-    key_topics = ['revenue', 'earnings', 'margin', 'guidance', 'outlook', 'q&a', 'risks', 'tone']
+    key_topics = ['revenue', 'earnings', 'margin',
+                  'guidance', 'outlook', 'q&a', 'risks', 'tone']
     for topic in key_topics:
         if topic not in summary_lower:
-            audit_results['missing'].append(f"MISSING: '{topic}' not explicitly mentioned or clearly addressed in summary (check completeness).")
+            audit_results['missing'].append(
+                f"MISSING: '{topic}' not explicitly mentioned or clearly addressed in summary (check completeness).")
 
-    total_verifiable_items = len(audit_results['verified']) + len(audit_results['flagged'])
-    hallucination_rate = (len(audit_results['flagged']) / max(1, total_verifiable_items)) * 100
+    total_verifiable_items = len(
+        audit_results['verified']) + len(audit_results['flagged'])
+    hallucination_rate = (
+        len(audit_results['flagged']) / max(1, total_verifiable_items)) * 100
 
     print("\n--- HALLUCINATION AUDIT REPORT ---")
     print("=" * 50)
@@ -449,6 +485,7 @@ def hallucination_audit(summary: str, transcript: str) -> tuple[dict, float]:
 
 # --- Analysis and Comparison Functions ---
 
+
 def run_prompt_strategy_comparison(client: OpenAI, transcript_to_use: str, company_name: str, key_facts_template: dict[str, list[str]], model: str = 'gpt-4o') -> pd.DataFrame:
     """
     Runs an experiment comparing different prompting strategies for summarization.
@@ -471,18 +508,21 @@ def run_prompt_strategy_comparison(client: OpenAI, transcript_to_use: str, compa
 
     for strategy in strategies:
         print(f"\n--- Running summary with {strategy} strategy ---")
-        summary, usage = summarize_with_strategy(client, transcript_to_use, strategy=strategy, model=model)
+        summary, usage = summarize_with_strategy(
+            client, transcript_to_use, strategy=strategy, model=model)
         audit, h_rate = hallucination_audit(summary, transcript_to_use)
 
         N_transcript_tokens = len(enc.encode(transcript_to_use))
         N_summary_tokens = len(enc.encode(summary))
-        cr = 1 - (N_summary_tokens / N_transcript_tokens) if N_transcript_tokens > 0 else 0
+        cr = 1 - (N_summary_tokens /
+                  N_transcript_tokens) if N_transcript_tokens > 0 else 0
 
         facts_in_summary_count = 0
         for fact in key_facts_transcript:
             if fact.lower() in summary.lower():
                 facts_in_summary_count += 1
-        recall_facts = facts_in_summary_count / len(key_facts_transcript) if key_facts_transcript else 0
+        recall_facts = facts_in_summary_count / \
+            len(key_facts_transcript) if key_facts_transcript else 0
 
         comparison[strategy] = {
             'word_count': len(summary.split()),
@@ -497,6 +537,7 @@ def run_prompt_strategy_comparison(client: OpenAI, transcript_to_use: str, compa
 
     comp_df = pd.DataFrame(comparison).T
     return comp_df
+
 
 def run_temperature_calibration_experiment(client: OpenAI, transcript: str, temperatures: list[float], model: str = 'gpt-4o') -> pd.Series:
     """
@@ -521,9 +562,10 @@ def run_temperature_calibration_experiment(client: OpenAI, transcript: str, temp
         # For simplicity, we'll make direct calls for this experiment.
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": TASK_PROMPT.format(transcript=transcript)}
+            {"role": "user", "content": TASK_PROMPT.format(
+                transcript=transcript)}
         ]
-        
+
         response1 = client.chat.completions.create(
             model=model, messages=messages, temperature=temp, max_tokens=2000
         )
@@ -536,17 +578,20 @@ def run_temperature_calibration_experiment(client: OpenAI, transcript: str, temp
 
         words1 = set(run1.lower().split())
         words2 = set(run2.lower().split())
-        jaccard_similarity = len(words1.intersection(words2)) / len(words1.union(words2))
+        jaccard_similarity = len(words1.intersection(
+            words2)) / len(words1.union(words2))
 
         temperature_consistency_results[temp] = jaccard_similarity
-        print(f"Temp={temp}: Jaccard similarity between runs = {jaccard_similarity:.3f}")
+        print(
+            f"Temp={temp}: Jaccard similarity between runs = {jaccard_similarity:.3f}")
 
     return pd.Series(temperature_consistency_results)
 
-def calculate_roi_brief(comparison_df: pd.DataFrame, 
+
+def calculate_roi_brief(comparison_df: pd.DataFrame,
                         total_transcripts_processed: int,
-                        annual_companies: int = 30, 
-                        annual_quarters: int = 4, 
+                        annual_companies: int = 30,
+                        annual_quarters: int = 4,
                         analyst_read_time_min: int = 45,
                         ai_review_time_min: int = 5,
                         analyst_focused_review_time_min: int = 10,
@@ -579,14 +624,17 @@ def calculate_roi_brief(comparison_df: pd.DataFrame,
     }
 
     estimated_cost_per_transcript = structured_metrics['cost']
-    projected_annual_llm_cost = annual_companies * annual_quarters * estimated_cost_per_transcript
+    projected_annual_llm_cost = annual_companies * \
+        annual_quarters * estimated_cost_per_transcript
     results['operational_efficiency']['projected_annual_llm_cost'] = projected_annual_llm_cost
 
-    total_analyst_time_saved_per_call_min = analyst_read_time_min - (ai_review_time_min + analyst_focused_review_time_min)
+    total_analyst_time_saved_per_call_min = analyst_read_time_min - \
+        (ai_review_time_min + analyst_focused_review_time_min)
     total_analyst_time_saved_per_call_hours = total_analyst_time_saved_per_call_min / 60
 
     total_calls_per_year = annual_companies * annual_quarters
-    projected_annual_hours_saved = total_calls_per_year * total_analyst_time_saved_per_call_hours
+    projected_annual_hours_saved = total_calls_per_year * \
+        total_analyst_time_saved_per_call_hours
     projected_annual_analyst_value_saved = projected_annual_hours_saved * analyst_hourly_cost
 
     results['projected_annual_roi'] = {
@@ -595,7 +643,8 @@ def calculate_roi_brief(comparison_df: pd.DataFrame,
         'projected_annual_analyst_value_saved': projected_annual_analyst_value_saved
     }
 
-    roi = ((projected_annual_analyst_value_saved - projected_annual_llm_cost) / projected_annual_llm_cost) * 100 if projected_annual_llm_cost else 0
+    roi = ((projected_annual_analyst_value_saved - projected_annual_llm_cost) /
+           projected_annual_llm_cost) * 100 if projected_annual_llm_cost else 0
     results['projected_annual_roi']['roi_percentage'] = roi
 
     results['ethical_considerations'] = {
@@ -605,8 +654,9 @@ def calculate_roi_brief(comparison_df: pd.DataFrame,
         'compliance_risk': "Unverified AI-generated figures or mischaracterized guidance risks violating CFA Standard V(A): Diligence and Reasonable Basis.",
         'documentation_importance': "Importance of documenting the audit process for transparency and accountability."
     }
-    
+
     return results
+
 
 def print_roi_brief(roi_results: dict) -> None:
     """Prints the formatted ROI and ethical brief."""
@@ -615,27 +665,36 @@ def print_roi_brief(roi_results: dict) -> None:
 
     op_eff = roi_results['operational_efficiency']
     print("\n**1. Operational Efficiency & Cost Savings**")
-    print(f"  - Total demonstration transcripts processed: {op_eff['total_demo_transcripts']}")
-    print(f"  - Total estimated API cost for these {op_eff['total_demo_transcripts']} transcripts: ${op_eff['total_demo_cost']:.4f}")
-    print(f"  - Average cost per structured summary: ${op_eff['avg_cost_per_structured_summary']:.4f}")
-    print(f"\n  - Projected Annual LLM Cost (for 30 companies, 4 quarters): ${op_eff['projected_annual_llm_cost']:.2f}")
+    print(
+        f"  - Total demonstration transcripts processed: {op_eff['total_demo_transcripts']}")
+    print(
+        f"  - Total estimated API cost for these {op_eff['total_demo_transcripts']} transcripts: ${op_eff['total_demo_cost']:.4f}")
+    print(
+        f"  - Average cost per structured summary: ${op_eff['avg_cost_per_structured_summary']:.4f}")
+    print(
+        f"\n  - Projected Annual LLM Cost (for 30 companies, 4 quarters): ${op_eff['projected_annual_llm_cost']:.2f}")
 
     proj_roi = roi_results['projected_annual_roi']
     print(f"\n**2. Projected Annual ROI**")
-    print(f"  - Estimated analyst time saved per call: {proj_roi['analyst_time_saved_per_call_min']:.1f} minutes")
-    print(f"  - Projected annual analyst hours saved (for 30 companies): {proj_roi['projected_annual_hours_saved']:.1f} hours")
-    print(f"  - Projected annual value of analyst time saved: ${proj_roi['projected_annual_analyst_value_saved']:,.2f}")
+    print(
+        f"  - Estimated analyst time saved per call: {proj_roi['analyst_time_saved_per_call_min']:.1f} minutes")
+    print(
+        f"  - Projected annual analyst hours saved (for 30 companies): {proj_roi['projected_annual_hours_saved']:.1f} hours")
+    print(
+        f"  - Projected annual value of analyst time saved: ${proj_roi['projected_annual_analyst_value_saved']:,.2f}")
     print(f"  - Projected Annual ROI: {proj_roi['roi_percentage']:,.0f}%")
 
     eth_cons = roi_results['ethical_considerations']
     print("\n**3. Ethical Considerations & Compliance (CFA Standard V(A))**")
     print(f"  - {eth_cons['llm_role_shift']}")
     print(f"  - {eth_cons['audit_necessity']}")
-    print(f"  - Example: Structured prompt hallucination rate was {eth_cons['structured_hallucination_rate']:.2f}%. Any flagged item requires human verification.")
+    print(
+        f"  - Example: Structured prompt hallucination rate was {eth_cons['structured_hallucination_rate']:.2f}%. Any flagged item requires human verification.")
     print(f"  - {eth_cons['compliance_risk']}")
     print(f"  - {eth_cons['documentation_importance']}")
 
 # --- Main Workflow Function ---
+
 
 def run_earnings_analysis_workflow(api_key: str | None = None) -> None:
     """
@@ -647,13 +706,13 @@ def run_earnings_analysis_workflow(api_key: str | None = None) -> None:
     """
     if not api_key:
         api_key = os.getenv("OPENAI_API_KEY")
-    
+
     if not api_key or api_key == "YOUR_OPENAI_KEY_HERE":
         print("Error: OpenAI API key not provided or set. Please set the OPENAI_API_KEY environment variable or pass it to the function.")
         return
 
     client = OpenAI(api_key=api_key)
-    
+
     transcript_files_to_setup = ['AAPL_Q4_2024', 'JPM_Q4_2024', 'TSLA_Q4_2024']
     setup_transcript_files()
     transcripts_data = load_transcripts_data(transcript_files_to_setup)
@@ -664,7 +723,8 @@ def run_earnings_analysis_workflow(api_key: str | None = None) -> None:
 
     # 1. Explain Financial Concept
     print("\n--- LLM Explanation of Yield Curve Inversion ---")
-    yield_curve_explanation = explain_financial_concept(client, "the significance of the yield curve inversion in 2023")
+    yield_curve_explanation = explain_financial_concept(
+        client, "the significance of the yield curve inversion in 2023")
     print(yield_curve_explanation)
 
     # 2. Naive Summary Example
@@ -676,12 +736,14 @@ def run_earnings_analysis_workflow(api_key: str | None = None) -> None:
 
         # 3. Structured Summary Example
         print("\n--- Structured Summary of AAPL Q4 2024 Earnings ---")
-        aapl_summary_structured, usage_structured = summarize_with_strategy(client, aapl_transcript, strategy='structured')
+        aapl_summary_structured, usage_structured = summarize_with_strategy(
+            client, aapl_transcript, strategy='structured')
         print(aapl_summary_structured)
         print(f"\nStrategy: structured")
         print(f" Input tokens: {usage_structured['prompt_tokens']:,}")
         print(f" Output tokens: {usage_structured['completion_tokens']:,}")
-        cost_structured = get_estimated_api_cost(usage_structured['prompt_tokens'], usage_structured['completion_tokens'])
+        cost_structured = get_estimated_api_cost(
+            usage_structured['prompt_tokens'], usage_structured['completion_tokens'])
         print(f" Cost: ${cost_structured:.4f}")
 
         # 4. Hallucination Audit for Structured Summary
@@ -713,7 +775,8 @@ def run_earnings_analysis_workflow(api_key: str | None = None) -> None:
                 "returned over $29 billion to shareholders"
             ]
         }
-        comp_df = run_prompt_strategy_comparison(client, aapl_transcript, 'AAPL_Q4_2024', key_facts_for_recall)
+        comp_df = run_prompt_strategy_comparison(
+            client, aapl_transcript, 'AAPL_Q4_2024', key_facts_for_recall)
         print("\n--- PROMPT STRATEGY COMPARISON ---")
         print("=" * 60)
         print(comp_df.to_string())
@@ -721,21 +784,24 @@ def run_earnings_analysis_workflow(api_key: str | None = None) -> None:
         comp_df = None
         print("Skipping prompt strategy comparison due to missing AAPL transcript.")
 
-
     # 8. Temperature Calibration Experiment
     if aapl_transcript:
         temperatures = [0.0, 0.2, 0.5, 0.8, 1.0]
-        temperature_consistency_results = run_temperature_calibration_experiment(client, aapl_transcript, temperatures)
+        temperature_consistency_results = run_temperature_calibration_experiment(
+            client, aapl_transcript, temperatures)
         print("\n--- Temperature Consistency Results ---")
         print(temperature_consistency_results.to_string())
 
     # 9. ROI and Ethical Brief
     if comp_df is not None:
-        total_transcripts_processed_demo = len(transcripts_data) # Total transcripts used in the demo run, not just comparison
-        roi_report = calculate_roi_brief(comp_df, total_transcripts_processed_demo)
+        # Total transcripts used in the demo run, not just comparison
+        total_transcripts_processed_demo = len(transcripts_data)
+        roi_report = calculate_roi_brief(
+            comp_df, total_transcripts_processed_demo)
         print_roi_brief(roi_report)
     else:
         print("\nSkipping ROI and Ethical Brief due to missing comparison data.")
+
 
 # --- Entry Point for Script Execution ---
 if __name__ == "__main__":
@@ -749,7 +815,8 @@ if __name__ == "__main__":
         print("Please set your OpenAI API key as an environment variable or manually paste it below.")
         # As an alternative for local testing, you might uncomment this line and paste your key:
         # openai_api_key = "PASTE_YOUR_KEY_HERE"
-        openai_api_key = input("Enter your OpenAI API Key (or set OPENAI_API_KEY env var): ")
+        openai_api_key = input(
+            "Enter your OpenAI API Key (or set OPENAI_API_KEY env var): ")
         if not openai_api_key:
             print("API Key not provided. Exiting.")
             exit()

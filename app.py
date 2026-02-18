@@ -8,42 +8,11 @@ import tiktoken
 from source import *
 
 # Set page configuration as requested
-st.set_page_config(page_title="QuLab: Lab 25: LLM Prompting Demo", layout="wide")
+st.set_page_config(
+    page_title="QuLab: Lab 25: LLM Prompting Demo", layout="wide")
 
 # Sidebar Standard Header
 st.sidebar.image("https://www.quantuniversity.com/assets/img/logo5.jpg")
-st.sidebar.divider()
-st.sidebar.title("LLM Financial Lab")
-st.sidebar.markdown("---")
-
-# Global Settings in Sidebar
-st.sidebar.header("Global Settings")
-if 'llm_model' not in st.session_state:
-    st.session_state.llm_model = 'gpt-4o'
-st.session_state.llm_model = st.sidebar.selectbox(
-    "Select LLM Model",
-    ['gpt-4o', 'gpt-3.5-turbo'],
-    index=0,
-    key="global_llm_model_select",
-    help="Choose the OpenAI model for generating responses."
-)
-
-if 'transcripts' in globals() and transcripts:
-    transcript_keys = list(transcripts.keys())
-    if 'selected_transcript' not in st.session_state:
-        st.session_state.selected_transcript = transcript_keys[0]
-    
-    default_idx = transcript_keys.index(st.session_state.selected_transcript) if st.session_state.selected_transcript in transcript_keys else 0
-    st.session_state.selected_transcript = st.sidebar.selectbox(
-        "Select Earnings Transcript",
-        transcript_keys,
-        index=default_idx,
-        key="global_transcript_select",
-        help="The earnings call transcript to analyze."
-    )
-else:
-    st.sidebar.warning("No transcripts available. Ensure `source.py` correctly loads them.")
-    st.session_state.selected_transcript = None
 
 # Navigation in Sidebar
 st.sidebar.markdown("---")
@@ -59,13 +28,78 @@ page_options = [
 if 'current_page' not in st.session_state:
     st.session_state.current_page = page_options[0]
 
-nav_index = page_options.index(st.session_state.current_page) if st.session_state.current_page in page_options else 0
+nav_index = page_options.index(
+    st.session_state.current_page) if st.session_state.current_page in page_options else 0
 st.session_state.current_page = st.sidebar.selectbox(
     "Go to",
     page_options,
     index=nav_index,
     key="page_navigation"
 )
+
+st.sidebar.divider()
+
+# API Key Input in Sidebar
+st.sidebar.header("API Configuration")
+if 'openai_api_key' not in st.session_state:
+    st.session_state.openai_api_key = ""
+
+st.session_state.openai_api_key = st.sidebar.text_input(
+    "OpenAI API Key",
+    value=st.session_state.openai_api_key,
+    type="password",
+    help="Enter your OpenAI API key to enable LLM functionality."
+)
+
+st.sidebar.markdown("---")
+
+# Global Settings in Sidebar
+st.sidebar.header("Global Settings")
+if 'llm_model' not in st.session_state:
+    st.session_state.llm_model = 'gpt-4o'
+st.session_state.llm_model = st.sidebar.selectbox(
+    "Select LLM Model",
+    ['gpt-4o', 'gpt-3.5-turbo'],
+    index=0,
+    key="global_llm_model_select",
+    help="Choose the OpenAI model for generating responses."
+)
+
+# Initialize OpenAI client and load transcripts
+if st.session_state.openai_api_key:
+    try:
+        client = OpenAI(api_key=st.session_state.openai_api_key)
+        # Setup transcript files and load them
+        setup_transcript_files()
+        transcript_files_to_load = [
+            'AAPL_Q4_2024', 'JPM_Q4_2024', 'TSLA_Q4_2024']
+        transcripts = load_transcripts_data(transcript_files_to_load)
+    except Exception as e:
+        st.sidebar.error(f"Error initializing OpenAI client: {str(e)}")
+        transcripts = {}
+        client = None
+else:
+    transcripts = {}
+    client = None
+    st.sidebar.warning(
+        "Please enter your OpenAI API key to use the application.")
+
+if transcripts:
+    transcript_keys = list(transcripts.keys())
+    if 'selected_transcript' not in st.session_state:
+        st.session_state.selected_transcript = transcript_keys[0]
+
+    default_idx = transcript_keys.index(
+        st.session_state.selected_transcript) if st.session_state.selected_transcript in transcript_keys else 0
+    st.session_state.selected_transcript = st.sidebar.selectbox(
+        "Select Earnings Transcript",
+        transcript_keys,
+        index=default_idx,
+        key="global_transcript_select",
+        help="The earnings call transcript to analyze."
+    )
+else:
+    st.session_state.selected_transcript = None
 
 # Main Page Title
 st.title("QuLab: Lab 25: LLM Prompting Demo")
@@ -121,13 +155,15 @@ if st.session_state.current_page == "Application Overview":
 
     Crucially, this section also simulates real-world conditions by creating dummy earnings call transcripts for Apple (AAPL), JPMorgan Chase (JPM), and Tesla (TSLA) for Q4 2024. These files are stored in a `transcripts/` directory, mimicking the data an analyst would work with. For each transcript, we calculate its word and token count using `tiktoken`, which is vital for managing LLM context windows and estimating API costs. The estimated input cost per transcript provides an early look into the potential expenses, setting the stage for a more detailed ROI analysis later.
     """)
-    st.info("Environment setup is handled automatically upon application start via `source.py` import.")
     if st.session_state.selected_transcript:
         st.subheader("Loaded Transcripts Overview:")
-        st.write(f"Currently selected transcript: `{st.session_state.selected_transcript}`")
-        st.text_area("Selected Transcript Content (Preview)", transcripts[st.session_state.selected_transcript][:1000] + "...", height=200, disabled=True)
+        st.write(
+            f"Currently selected transcript: `{st.session_state.selected_transcript}`")
+        st.text_area("Selected Transcript Content (Preview)",
+                     transcripts[st.session_state.selected_transcript][:1000] + "...", height=200, disabled=True)
     else:
-        st.warning("No transcripts are loaded. Please check your `source.py` file and environment.")
+        st.warning(
+            "Please setup the openai key to proceed.")
 
 elif st.session_state.current_page == "1. LLM Explanatory Power":
     st.title("1. LLM Explanatory Power: Understanding Complex Financial Concepts")
@@ -145,11 +181,16 @@ elif st.session_state.current_page == "1. LLM Explanatory Power":
         height=100
     )
     if st.button("Get Explanation"):
-        if st.session_state.concept_query:
+        if not client:
+            st.error(
+                "Please enter your OpenAI API key in the sidebar to use this feature.")
+        elif st.session_state.concept_query:
             with st.spinner("Generating explanation..."):
                 try:
-                    response = explain_financial_concept(st.session_state.concept_query, model=st.session_state.llm_model)
+                    response = explain_financial_concept(
+                        client, st.session_state.concept_query, model=st.session_state.llm_model)
                     st.session_state.explanation_response = response
+                    st.success("Explanation generated successfully!")
                 except Exception as e:
                     st.error(f"Error generating explanation: {e}")
         else:
@@ -166,21 +207,59 @@ elif st.session_state.current_page == "1. LLM Explanatory Power":
 elif st.session_state.current_page == "2. Summarize Earnings Call":
     st.title("2. Summarize Earnings Call: Strategies, Chunking & Data Extraction")
 
-    selected_transcript_content = transcripts.get(st.session_state.selected_transcript, "")
+    selected_transcript_content = transcripts.get(
+        st.session_state.selected_transcript, "")
     if not selected_transcript_content:
         st.warning("Please select a transcript from the sidebar to proceed.")
         st.stop()
 
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+        st.subheader("View Prompts for Each Strategy")
+    st.markdown(
+        "Before running the comparison, review the actual prompts that will be sent to the LLM for each strategy:")
+
+    with st.expander("🔍 View Prompts by Strategy", expanded=False):
+        strategy_tab1, strategy_tab2, strategy_tab3 = st.tabs(
+            ["Naive Strategy", "Structured Strategy", "Few-Shot Strategy"])
+
+        with strategy_tab1:
+            st.markdown("**Naive Strategy Prompt:**")
+            st.markdown(
+                "This strategy uses a simple, direct prompt without any specific structure or constraints.")
+            st.code(f"""User Message:
+{PROMPT_NAIVE.format(transcript="[TRANSCRIPT CONTENT]")}""", language="text")
+
+        with strategy_tab2:
+            st.markdown("**Structured Strategy Prompts:**")
+            st.markdown(
+                "This strategy uses a system prompt to define the role and constraints, plus a task prompt for structure.")
+            st.markdown("**System Prompt:**")
+            st.code(SYSTEM_PROMPT, language="text")
+            st.markdown("**Task Prompt:**")
+            st.code(TASK_PROMPT.format(
+                transcript="[TRANSCRIPT CONTENT]"), language="text")
+
+        with strategy_tab3:
+            st.markdown("**Few-Shot Strategy Prompts:**")
+            st.markdown(
+                "This strategy includes an example of a good summary before the actual task.")
+            st.markdown("**System Prompt:**")
+            st.code(SYSTEM_PROMPT, language="text")
+            st.markdown("**User Prompt (with example + task):**")
+            st.code(FEW_SHOT_EXAMPLE + "\n\nNow summarize the following transcript in the same format:\n" +
+                    TASK_PROMPT.format(transcript="[TRANSCRIPT CONTENT]"), language="text")
+
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "Naive Summary",
         "Structured & Few-Shot",
         "Token Management & Chunking",
         "Structured JSON Extraction",
-        "Prompt Comparison & Temperature Calibration"
+        "Prompt Comparison",
+        "Temperature Calibration"
     ])
 
     with tab1:
-        st.header("Streamlining Workflow: Summarizing Earnings Calls (Naive Approach)")
+        st.header(
+            "Streamlining Workflow: Summarizing Earnings Calls (Naive Approach)")
         st.markdown(f"""
         One of the most immediate applications of LLMs in finance is summarizing lengthy documents like earnings call transcripts. Let's start with a straightforward, "naive" prompting strategy to see how an LLM handles a summarization request without much specific guidance.
         """)
@@ -188,27 +267,38 @@ elif st.session_state.current_page == "2. Summarize Earnings Call":
         st.markdown(f"**Context:** Earnings call transcripts are dense with information, including financial figures, management commentary, and analyst Q&A. A quick summary helps in triage and preliminary assessment.")
         st.markdown(f"**Concept:** This introduces basic **prompt engineering** for summarization. A naive prompt simply tells the LLM \"summarize this text.\" While seemingly effective, it often lacks the structure, detail, and anti-hallucination guardrails necessary for professional financial analysis.")
 
-        st.subheader(f"Generate Naive Summary for {st.session_state.selected_transcript}")
+        st.subheader(
+            f"Generate Naive Summary for {st.session_state.selected_transcript}")
         if st.button("Generate Naive Summary", key="naive_summary_btn"):
-            with st.spinner("Generating naive summary..."):
-                try:
-                    summary = summarize_naive(selected_transcript_content, model=st.session_state.llm_model)
-                    if st.session_state.selected_transcript not in st.session_state.summaries:
-                        st.session_state.summaries[st.session_state.selected_transcript] = {}
-                    st.session_state.summaries[st.session_state.selected_transcript]['naive'] = {'summary': summary, 'usage': None}
-                except Exception as e:
-                    st.error(f"Error generating naive summary: {e}")
-        
+            if not client:
+                st.error(
+                    "Please enter your OpenAI API key in the sidebar to use this feature.")
+            else:
+                with st.spinner("Generating naive summary..."):
+                    try:
+                        summary = summarize_naive(
+                            client, selected_transcript_content, model=st.session_state.llm_model)
+                        if st.session_state.selected_transcript not in st.session_state.summaries:
+                            st.session_state.summaries[st.session_state.selected_transcript] = {
+                            }
+                        st.session_state.summaries[st.session_state.selected_transcript]['naive'] = {
+                            'summary': summary, 'usage': None}
+                    except Exception as e:
+                        st.error(f"Error generating naive summary: {e}")
+
         if st.session_state.selected_transcript in st.session_state.summaries and 'naive' in st.session_state.summaries[st.session_state.selected_transcript]:
             st.subheader("Naive Summary Output")
-            st.markdown(f"--- Naive Summary of {st.session_state.selected_transcript} Earnings ---")
-            st.write(st.session_state.summaries[st.session_state.selected_transcript]['naive']['summary'])
+            st.markdown(
+                f"--- Naive Summary of {st.session_state.selected_transcript} Earnings ---")
+            st.write(
+                st.session_state.summaries[st.session_state.selected_transcript]['naive']['summary'])
             st.markdown(f"""
             The output from the naive summarization provides a general overview of Apple's Q4 2024 earnings. While it captures some key figures like revenue and EPS, it lacks a structured format and might miss critical nuances or comparisons important for an investment professional. For instance, it doesn't explicitly highlight the year-over-year changes or segment performance in a clear, standardized way. This demonstrates the limitations of a simple prompt for the detailed, structured information needed in finance.
             """)
 
     with tab2:
-        st.header("Enhancing Precision: Structured Summaries & Anti-Hallucination Guardrails")
+        st.header(
+            "Enhancing Precision: Structured Summaries & Anti-Hallucination Guardrails")
         st.markdown(f"""
         The naive summary, while quick, often lacks the depth, structure, and reliability required for professional financial analysis. As an analyst, you need summaries that are consistently formatted, cover specific key areas, and explicitly guard against factual errors. This leads us to **structured prompting**.
         """)
@@ -220,9 +310,10 @@ elif st.session_state.current_page == "2. Summarize Earnings Call":
         *   **Structured Output Specification:** Defining precise sections (e.g., HEADLINE, QUARTERLY PERFORMANCE, GUIDANCE & OUTLOOK, RISKS & CONCERNS) ensures comprehensive and consistent coverage. This is template-driven prompt engineering.
         *   **Specificity Instructions:** Directives like "Quote specific numbers exactly as stated" or "distinguish between RAISED, LOWERED, MAINTAINED guidance" enforce numerical precision and accurate characterization of management commentary, minimizing ambiguous paraphrasing.
         """)
-        
-        st.subheader(f"Generate Structured/Few-Shot Summary for {st.session_state.selected_transcript}")
-        
+
+        st.subheader(
+            f"Generate Structured/Few-Shot Summary for {st.session_state.selected_transcript}")
+
         selected_strategy = st.radio(
             "Select Prompting Strategy:",
             options=['structured', 'few_shot'],
@@ -240,30 +331,43 @@ elif st.session_state.current_page == "2. Summarize Earnings Call":
         )
 
         if st.button(f"Generate {selected_strategy.replace('_', ' ').title()} Summary", key="structured_summary_btn"):
-            with st.spinner(f"Generating {selected_strategy.replace('_', ' ')} summary..."):
-                try:
-                    summary, usage = summarize_with_strategy(
-                        selected_transcript_content,
-                        strategy=selected_strategy,
-                        model=st.session_state.llm_model
-                    )
-                    if st.session_state.selected_transcript not in st.session_state.summaries:
-                        st.session_state.summaries[st.session_state.selected_transcript] = {}
-                    st.session_state.summaries[st.session_state.selected_transcript][selected_strategy] = {'summary': summary, 'usage': usage}
-                except Exception as e:
-                    st.error(f"Error generating {selected_strategy} summary: {e}")
-        
+            if not client:
+                st.error(
+                    "Please enter your OpenAI API key in the sidebar to use this feature.")
+            else:
+                with st.spinner(f"Generating {selected_strategy.replace('_', ' ')} summary..."):
+                    try:
+                        summary, usage = summarize_with_strategy(
+                            client,
+                            selected_transcript_content,
+                            strategy=selected_strategy,
+                            model=st.session_state.llm_model
+                        )
+                        if st.session_state.selected_transcript not in st.session_state.summaries:
+                            st.session_state.summaries[st.session_state.selected_transcript] = {
+                            }
+                        st.session_state.summaries[st.session_state.selected_transcript][selected_strategy] = {
+                            'summary': summary, 'usage': usage}
+                    except Exception as e:
+                        st.error(
+                            f"Error generating {selected_strategy} summary: {e}")
+
         if st.session_state.selected_transcript in st.session_state.summaries and selected_strategy in st.session_state.summaries[st.session_state.selected_transcript]:
-            st.subheader(f"{selected_strategy.replace('_', ' ').title()} Summary Output (V5 Example Summary Output)")
-            st.markdown(f"--- {selected_strategy.replace('_', ' ').title()} Summary of {st.session_state.selected_transcript} Earnings ---")
-            st.write(st.session_state.summaries[st.session_state.selected_transcript][selected_strategy]['summary'])
-            
+            st.subheader(
+                f"{selected_strategy.replace('_', ' ').title()} Summary Output")
+            st.markdown(
+                f"--- {selected_strategy.replace('_', ' ').title()} Summary of {st.session_state.selected_transcript} Earnings ---")
+            st.write(
+                st.session_state.summaries[st.session_state.selected_transcript][selected_strategy]['summary'])
+
             usage_data = st.session_state.summaries[st.session_state.selected_transcript][selected_strategy]['usage']
             if usage_data:
                 st.write(f"\n**Token Usage:**")
-                st.write(f" Input tokens: {usage_data.prompt_tokens:,}")
-                st.write(f" Output tokens: {usage_data.completion_tokens:,}")
-                cost = get_estimated_api_cost(usage_data.prompt_tokens, usage_data.completion_tokens)
+                st.write(f" Input tokens: {usage_data['prompt_tokens']:,}")
+                st.write(
+                    f" Output tokens: {usage_data['completion_tokens']:,}")
+                cost = get_estimated_api_cost(
+                    usage_data['prompt_tokens'], usage_data['completion_tokens'])
                 st.write(f" Cost: ${cost:.4f}")
 
             st.markdown(f"""
@@ -273,7 +377,8 @@ elif st.session_state.current_page == "2. Summarize Earnings Call":
             """)
 
     with tab3:
-        st.header("Managing Scale: Handling Long Transcripts with Token Management & Chunking")
+        st.header(
+            "Managing Scale: Handling Long Transcripts with Token Management & Chunking")
         st.markdown(f"""
         Earnings call transcripts can easily exceed the context window limits of even advanced LLMs. To reliably process these lengthy documents, a strategy for **token management** and **chunking** is indispensable. Hierarchical summarization breaks down the problem into manageable steps.
         """)
@@ -285,42 +390,77 @@ elif st.session_state.current_page == "2. Summarize Earnings Call":
         *   **Section-based Chunking:** Splitting transcripts at logical boundaries (e.g., Prepared Remarks, Q&A Session) to maintain coherence.
         *   **Hierarchical Summarization:** Summarizing individual chunks first, then merging these summaries into a final, comprehensive brief. This ensures no part of the original document is overlooked.
         """)
-        st.markdown(r"**Mathematical Formulation: Token Economics for Earnings Call Summarization**")
+        st.markdown(
+            r"**Mathematical Formulation: Token Economics for Earnings Call Summarization**")
         st.markdown(r"The cost of interacting with an LLM depends on the number of input and output tokens. Understanding these **token economics** is critical for projecting costs and evaluating ROI.")
-        st.markdown(r"The total cost $C$ for a given LLM interaction can be calculated as:")
-        st.markdown(r"$$ C = N_{{\text{in}}} \times P_{{\text{in}}} + N_{{\text{out}}} \times P_{{\text{out}}} $$")
-        st.markdown(r"where $N_{{\text{in}}}$ = Number of input tokens, $P_{{\text{in}}}$ = Price per input token (e.g., $2.50 per 1 million input tokens for GPT-4o), $N_{{\text{out}}}$ = Number of output tokens, $P_{{\text{out}}}$ = Price per output token (e.g., $10.00 per 1 million input tokens for GPT-4o).")
-        st.markdown(r"For a typical earnings call transcript with $N_{{\text{in}}} \approx 12,000$ tokens and a summary of $N_{{\text{out}}} \approx 1,500$ tokens, using GPT-4o pricing ($P_{{\text{in}}} = \$2.50/1\text{{M}}$, $P_{{\text{out}}} = \$10.00/1\text{{M}}$):")
-        st.markdown(r"$$ C = 12,000 \times \frac{{2.50}}{{10^6}} + 1,500 \times \frac{{10.00}}{{10^6}} = \$0.03 + \$0.015 = \$0.045 $$")
-        st.markdown(r"This demonstrates that while individual summaries are cheap, costs can add up across a large coverage universe.")
 
-        st.subheader(f"Generate Hierarchical Summary for {st.session_state.selected_transcript}")
+        st.markdown(
+            r"The total cost $C$ for a given LLM interaction can be calculated as:")
+        st.markdown(
+            r"""
+$$
+ C = N_{\text{in}} \times P_{\text{in}} + N_{\text{out}} \times P_{\text{out}}
+$$
+""")
+
+        st.markdown(
+            r"where $N_{\text{in}}$ = Number of input tokens, "
+            r"$P_{\text{in}}$ = Price per input token (e.g., \$2.50 per 1 million tokens), "
+            r"$N_{\text{out}}$ = Number of output tokens, "
+            r"$P_{\text{out}}$ = Price per output token (e.g., \$10.00 per 1 million tokens)."
+        )
+
+        st.markdown(
+            r"For a typical earnings call transcript with $N_{\text{in}} \approx 12,000$ tokens and a summary of $N_{\text{out}} \approx 1,500$ tokens, "
+            r"using GPT-4o pricing ($P_{\text{in}} = 2.50/1\text{M}$, $P_{\text{out}} = 10.00/1\text{M}$):"
+        )
+
+        st.markdown(
+            r"""
+$$
+ C = 12,000 \times \frac{2.50}{10^6} + 1,500 \times \frac{10.00}{10^6} = \$0.03 + \$0.015 = \$0.045
+$$
+""")
+
+        st.markdown(
+            r"This demonstrates that while individual summaries are cheap, costs can add up across a large coverage universe.")
+        st.subheader(
+            f"Generate Hierarchical Summary for {st.session_state.selected_transcript}")
         if st.button("Generate Hierarchical Summary", key="hierarchical_summary_btn"):
-            with st.spinner("Generating hierarchical summary... This might take longer for long transcripts."):
-                try:
-                    old_stdout = sys.stdout
-                    new_stdout = io.StringIO()
-                    sys.stdout = new_stdout
-                    
-                    final_summary = hierarchical_summarize(selected_transcript_content, model=st.session_state.llm_model)
-                    
-                    sys.stdout = old_stdout
-                    chunk_output = new_stdout.getvalue()
+            if not client:
+                st.error(
+                    "Please enter your OpenAI API key in the sidebar to use this feature.")
+            else:
+                with st.spinner("Generating hierarchical summary... This might take longer for long transcripts."):
+                    try:
+                        old_stdout = sys.stdout
+                        new_stdout = io.StringIO()
+                        sys.stdout = new_stdout
 
-                    if st.session_state.selected_transcript not in st.session_state.summaries:
-                        st.session_state.summaries[st.session_state.selected_transcript] = {}
-                    st.session_state.summaries[st.session_state.selected_transcript]['hierarchical'] = {'summary': final_summary, 'usage': None}
-                    
-                    st.subheader("Chunking Process Details:")
-                    st.code(chunk_output)
+                        final_summary = hierarchical_summarize(
+                            client, selected_transcript_content, model=st.session_state.llm_model)
 
-                except Exception as e:
-                    st.error(f"Error generating hierarchical summary: {e}")
-        
+                        sys.stdout = old_stdout
+                        chunk_output = new_stdout.getvalue()
+
+                        if st.session_state.selected_transcript not in st.session_state.summaries:
+                            st.session_state.summaries[st.session_state.selected_transcript] = {
+                            }
+                        st.session_state.summaries[st.session_state.selected_transcript]['hierarchical'] = {
+                            'summary': final_summary, 'usage': None}
+
+                        st.subheader("Chunking Process Details:")
+                        st.code(chunk_output)
+
+                    except Exception as e:
+                        st.error(f"Error generating hierarchical summary: {e}")
+
         if st.session_state.selected_transcript in st.session_state.summaries and 'hierarchical' in st.session_state.summaries[st.session_state.selected_transcript]:
             st.subheader("Final Hierarchical Summary Output")
-            st.markdown(f"--- Final Hierarchical Summary of {st.session_state.selected_transcript} Earnings ---")
-            st.write(st.session_state.summaries[st.session_state.selected_transcript]['hierarchical']['summary'])
+            st.markdown(
+                f"--- Final Hierarchical Summary of {st.session_state.selected_transcript} Earnings ---")
+            st.write(
+                st.session_state.summaries[st.session_state.selected_transcript]['hierarchical']['summary'])
             st.markdown(f"""
             This section successfully demonstrates how to manage long transcripts that exceed typical LLM context windows. The `chunk_transcript` function first attempts to split the document at natural section breaks like "Prepared Remarks" and "Q&A Session." If these chunks are still too large, it further subdivides them at sentence boundaries. The token counts for each chunk are displayed, allowing the analyst to verify that no chunk exceeds the `max_chunk_tokens` limit.
 
@@ -340,8 +480,9 @@ elif st.session_state.current_page == "2. Summarize Earnings Call":
         *   **Zero Temperature ($\tau=0.0$):** For numerical extraction, a temperature of $0.0$ is non-negotiable. At $\tau > 0$, the LLM may "creatively" round numbers, convert units, or interpolate, leading to factual distortions. $\tau=0.0$ ensures greedy decoding, always picking the highest-probability token, thus minimizing numerical distortion and maximizing determinism.
         *   **Clear Field Definitions:** Explicitly defining required JSON fields and their expected data types.
         """)
-        st.subheader(f"Extract JSON Metrics for {st.session_state.selected_transcript}")
-        
+        st.subheader(
+            f"Extract JSON Metrics for {st.session_state.selected_transcript}")
+
         st.session_state.json_extraction_temperature = st.slider(
             "Select Temperature (for JSON extraction):",
             min_value=0.0,
@@ -353,15 +494,21 @@ elif st.session_state.current_page == "2. Summarize Earnings Call":
             disabled=True if st.session_state.json_extraction_temperature != 0.0 else False
         )
         if st.session_state.json_extraction_temperature != 0.0:
-            st.warning("Temperature for JSON extraction is recommended to be 0.0 for maximum determinism and factual accuracy.")
+            st.warning(
+                "Temperature for JSON extraction is recommended to be 0.0 for maximum determinism and factual accuracy.")
 
         if st.button("Extract JSON Metrics", key="extract_json_btn"):
-            if st.session_state.json_extraction_temperature != 0.0:
-                st.error("JSON extraction requires temperature to be 0.0. Please set it to 0.0.")
+            if not client:
+                st.error(
+                    "Please enter your OpenAI API key in the sidebar to use this feature.")
+            elif st.session_state.json_extraction_temperature != 0.0:
+                st.error(
+                    "JSON extraction requires temperature to be 0.0. Please set it to 0.0.")
             else:
                 with st.spinner("Extracting structured metrics..."):
                     try:
-                        metrics = extract_metrics(selected_transcript_content, model=st.session_state.llm_model)
+                        metrics = extract_metrics(
+                            client, selected_transcript_content, model=st.session_state.llm_model)
                         st.session_state.json_metrics[st.session_state.selected_transcript] = metrics
                     except json.JSONDecodeError as je:
                         st.error(f"LLM did not return valid JSON. Error: {je}")
@@ -370,8 +517,10 @@ elif st.session_state.current_page == "2. Summarize Earnings Call":
 
         if st.session_state.selected_transcript in st.session_state.json_metrics:
             st.subheader("Extracted Financial Metrics (JSON) Output")
-            st.markdown(f"--- Extracted Financial Metrics for {st.session_state.selected_transcript} (JSON) ---")
-            st.json(st.session_state.json_metrics[st.session_state.selected_transcript])
+            st.markdown(
+                f"--- Extracted Financial Metrics for {st.session_state.selected_transcript} (JSON) ---")
+            st.json(
+                st.session_state.json_metrics[st.session_state.selected_transcript])
             st.markdown(f"""
             The LLM successfully extracts key financial metrics for Apple's Q4 2024 earnings into a well-structured JSON object. You can see the revenue, EPS, operating margin, and even guidance information presented in a clean, programmatic format. This output can be directly fed into an internal database or dashboard, automating a critical data entry task.
 
@@ -379,7 +528,8 @@ elif st.session_state.current_page == "2. Summarize Earnings Call":
             """)
 
     with tab5:
-        st.header("Optimizing & Comparing: Prompt Strategies and Temperature Calibration")
+        st.header(
+            "Optimizing & Comparing: Prompt Strategies and Temperature Calibration")
         st.markdown(f"""
         To truly leverage LLMs effectively, an analyst must understand how different prompt engineering strategies impact output quality and how to calibrate the LLM's "temperature" for various sub-tasks.
         """)
@@ -389,135 +539,211 @@ elif st.session_state.current_page == "2. Summarize Earnings Call":
         *   **Prompt Strategy Comparison:** Evaluating naive, structured, and few-shot prompts against metrics like word count, section coverage, hallucination rate, and fact recall helps identify the most effective approach for financial use cases. Structured prompts are generally considered the "production standard."
         *   **Temperature Calibration:** The `temperature` parameter controls the randomness of the LLM's output. `$\tau=0.0$` leads to deterministic, factual output (ideal for numerical extraction), while higher temperatures introduce more creativity (suitable for qualitative prose summaries, but risky for facts).
         """)
-        st.markdown(r"**Mathematical Formulation: Temperature in Autoregressive Generation**")
-        st.markdown(r"The temperature ($	au$) parameter modifies the probability distribution of the next token in autoregressive generation. Given the raw model scores (logits) $z_t$ for each possible token, the probability $P(	ext{{token}}_t | 	ext{{context}})$ is calculated as:")
-        st.markdown(r"$$ P(	ext{{token}}_t | 	ext{{context}}) = rac{{\exp(z_t/\tau)}}{{\sum_j \exp(z_j/\tau)}} $$")
-        st.markdown(r"where $z_t$ are the logits (raw model scores) and $\tau$ is the temperature.")
-        st.markdown(r"*   **$\tau=0$ (Greedy Decoding):** Always picks the highest-probability token. Deterministic, consistent, but can be repetitive. **Best for: numerical extraction, metric tables.**")
-        st.markdown(r"*   **$\tau=0.2-0.3$ (Low Randomness):** Slightly varied word choice but same factual content. **Best for: analyst brief prose.**")
-        st.markdown(r"*   **$\tau=0.7-1.0$ (High Creativity):** Different structures, varied phrasing, may introduce less likely (possibly incorrect) tokens. **Avoid for: factual financial summarization.**")
-        st.markdown(r"**Mathematical Formulation: Compression Ratio and Information Retention**")
-        st.markdown(r"These metrics quantify the efficiency and effectiveness of summarization.")
-        st.markdown(r"**Compression Ratio (CR):**")
-        st.markdown(r"$$ CR = 1 - \frac{{N_{{\text{summary}}}}}{{N_{{\text{transcript}}}}} $$")
-        st.markdown(r"Target: $CR > 90\%$ (e.g., a 10,000-word transcript condensed to <1,000 words).")
-        st.markdown(r"**Information Retention ($Recall_{{\text{facts}}}$):**")
-        st.markdown(r"$$ Recall_{{\text{facts}}} = \frac{{\text{{key facts in summary}}}}{{\text{{key facts in transcript}}}} $$")
-        st.markdown(r"This requires a manually compiled list of 15-20 key facts (revenue, EPS, segment performance, guidance changes, major Q&A points) from the transcript as ground truth. Target: $Recall_{{\text{facts}}} > 85\%$.")
-        
-        st.subheader("Prompt Strategy Comparison (V1 Prompt Comparison Table & V6 Compression Ratio Bar Chart)")
-        if st.button("Run Prompt Strategy Comparison", key="run_comparison_btn"):
-            with st.spinner("Running comparison across prompt strategies... This may take a moment."):
-                strategies = ['naive', 'structured', 'few_shot']
-                comparison = {}
-                transcript_to_use = selected_transcript_content
-                
-                for strategy in strategies:
-                    try:
-                        summary, usage = summarize_with_strategy(transcript_to_use, strategy=strategy, model=st.session_state.llm_model)
-                        audit, h_rate = hallucination_audit(summary, transcript_to_use)
-                        
-                        enc = tiktoken.encoding_for_model(st.session_state.llm_model)
-                        N_transcript_tokens = len(enc.encode(transcript_to_use))
-                        N_summary_tokens = len(enc.encode(summary))
-                        cr = 1 - (N_summary_tokens / N_transcript_tokens)
+        st.markdown(
+            r"**Mathematical Formulation: Temperature in Autoregressive Generation**")
+        st.markdown(
+            r"The temperature ($	au$) parameter modifies the probability distribution of the next token in autoregressive generation. Given the raw model scores (logits) $z_t$ for each possible token, the probability $P(	ext{{token}}_t | 	ext{{context}})$ is calculated as:")
+        st.markdown(
+            r"""
+$$
+ P(	ext{{token}}_t | 	\text{{context}}) = \frac{{\exp(z_t/\tau)}}{{\sum_j \exp(z_j/\tau)}}
+$$
+""")
+        st.markdown(
+            r"where $z_t$ are the logits (raw model scores) and $\tau$ is the temperature.")
+        st.markdown(
+            r"*   **$\tau=0$ (Greedy Decoding):** Always picks the highest-probability token. Deterministic, consistent, but can be repetitive. **Best for: numerical extraction, metric tables.**")
+        st.markdown(
+            r"*   **$\tau=0.2-0.3$ (Low Randomness):** Slightly varied word choice but same factual content. **Best for: analyst brief prose.**")
+        st.markdown(
+            r"*   **$\tau=0.7-1.0$ (High Creativity):** Different structures, varied phrasing, may introduce less likely (possibly incorrect) tokens. **Avoid for: factual financial summarization.**")
+        st.markdown(
+            r"**Mathematical Formulation: Compression Ratio and Information Retention**")
+        st.markdown(
+            r"These metrics quantify the efficiency and effectiveness of summarization.")
+        st.markdown(
+            r"**Compression Ratio (CR):**")
+        st.markdown(r"""
+$$
+ CR = 1 - \frac{{N_{{\text{summary}}}}}{{N_{{\text{transcript}}}}}
+$$
+""")
+        st.markdown(
+            r"Target: $CR > 90\%$ (e.g., a 10,000-word transcript condensed to <1,000 words).")
+        st.markdown(
+            r"**Information Retention ($Recall_{{\text{facts}}}$):**")
+        st.markdown(r"""
+$$
+ Recall_{{\text{facts}}} = \frac{{\text{{key facts in summary}}}}{{\text{{key facts in transcript}}}}
+$$
+""")
+        st.markdown(
+            r"This requires a manually compiled list of 15-20 key facts (revenue, EPS, segment performance, guidance changes, major Q&A points) from the transcript as ground truth. Target: $Recall_{{\text{facts}}} > 85\%$.")
 
-                        facts_in_summary_count = 0
-                        # Assuming key_facts_transcript is available from source.py
-                        if 'key_facts_transcript' in globals():
-                            for fact in key_facts_transcript:
-                                if fact.lower() in summary.lower():
-                                    facts_in_summary_count += 1
-                            recall_facts = facts_in_summary_count / len(key_facts_transcript) if key_facts_transcript else 0
-                        else:
+        st.divider()
+        st.subheader(
+            "Prompt Strategy Comparison")
+        if st.button(
+            "Run Prompt Strategy Comparison", key="run_comparison_btn"):
+            if not client:
+                st.error(
+                    "Please enter your OpenAI API key in the sidebar to use this feature.")
+            else:
+                with st.spinner("Running comparison across prompt strategies... This may take a moment."):
+                    strategies = ['naive', 'structured', 'few_shot']
+                    comparison = {}
+                    prompts_used = {}
+                    transcript_to_use = selected_transcript_content
+
+                    for strategy in strategies:
+                        try:
+                            # Build the prompt for display
+                            if strategy == 'naive':
+                                prompts_used[strategy] = {
+                                    'messages': [{"role": "user", "content": PROMPT_NAIVE.format(transcript=transcript_to_use[:500] + "...")}]
+                                }
+                            elif strategy == 'structured':
+                                prompts_used[strategy] = {
+                                    'messages': [
+                                        {"role": "system", "content": SYSTEM_PROMPT},
+                                        {"role": "user", "content": TASK_PROMPT.format(
+                                            transcript=transcript_to_use[:500] + "...")}
+                                    ]
+                                }
+                            elif strategy == 'few_shot':
+                                prompts_used[strategy] = {
+                                    'messages': [
+                                        {"role": "system", "content": SYSTEM_PROMPT},
+                                        {"role": "user", "content": FEW_SHOT_EXAMPLE + "\n\nNow summarize the following transcript in the same format:\n" +
+                                            TASK_PROMPT.format(transcript=transcript_to_use[:500] + "...")}
+                                    ]
+                                }
+
+                            summary, usage = summarize_with_strategy(
+                                client, transcript_to_use, strategy=strategy, model=st.session_state.llm_model)
+                            audit, h_rate = hallucination_audit(
+                                summary, transcript_to_use)
+
+                            enc = tiktoken.encoding_for_model(
+                                st.session_state.llm_model)
+                            N_transcript_tokens = len(
+                                enc.encode(transcript_to_use))
+                            N_summary_tokens = len(enc.encode(summary))
+                            cr = 1 - (N_summary_tokens / N_transcript_tokens)
+
+                            facts_in_summary_count = 0
                             recall_facts = 0.0
+                            # key_facts_transcript would be defined in source.py if needed for production
+                            # For now, we skip fact recall calculation
+                            # if 'key_facts_transcript' in globals():
+                            #     for fact in key_facts_transcript:
+                            #         if fact.lower() in summary.lower():
+                            #             facts_in_summary_count += 1
+                            #     recall_facts = facts_in_summary_count / len(key_facts_transcript) if key_facts_transcript else 0
 
-                        comparison[strategy] = {
-                            'word_count': len(summary.split()),
-                            'section_coverage': sum(1 for s in ('HEADLINE', 'QUARTERLY PERFORMANCE', 'GUIDANCE', 'Q&A', 'RISKS', 'TONE') if s.lower() in summary.lower()),
-                            'hallucination_rate': f"{h_rate:.2f}%",
-                            'numbers_verified': len(audit['verified']),
-                            'numbers_flagged': len(audit['flagged']),
-                            'cost': get_estimated_api_cost(usage.prompt_tokens, usage.completion_tokens) if usage else 0.0,
-                            'compression_ratio': f"{cr:.2%}",
-                            'information_retention_recall': f"{recall_facts:.2%}"
-                        }
-                    except Exception as e:
-                        st.warning(f"Could not run comparison for {strategy} strategy: {e}")
-                        comparison[strategy] = {'word_count': 'N/A', 'section_coverage': 'N/A', 'hallucination_rate': 'N/A',
-                                                'numbers_verified': 'N/A', 'numbers_flagged': 'N/A', 'cost': 'N/A',
-                                                'compression_ratio': 'N/A', 'information_retention_recall': 'N/A'}
+                            comparison[strategy] = {
+                                'word_count': len(summary.split()),
+                                'section_coverage': sum(1 for s in ('HEADLINE', 'QUARTERLY PERFORMANCE', 'GUIDANCE', 'Q&A', 'RISKS', 'TONE') if s.lower() in summary.lower()),
+                                'hallucination_rate': f"{h_rate:.2f}%",
+                                'numbers_verified': len(audit['verified']),
+                                'numbers_flagged': len(audit['flagged']),
+                                'cost': get_estimated_api_cost(usage['prompt_tokens'], usage['completion_tokens']) if usage else 0.0,
+                                'compression_ratio': f"{cr:.2%}",
+                                'information_retention_recall': f"{recall_facts:.2%}"
+                            }
+                        except Exception as e:
+                            st.warning(
+                                f"Could not run comparison for {strategy} strategy: {e}")
+                            comparison[strategy] = {
+                                'word_count': 'N/A', 'section_coverage': 'N/A', 'hallucination_rate': 'N/A',
+                                'numbers_verified': 'N/A', 'numbers_flagged': 'N/A', 'cost': 'N/A',
+                                'compression_ratio': 'N/A', 'information_retention_recall': 'N/A'
+                            }
 
-                st.session_state.comparison_data = pd.DataFrame(comparison).T.astype(str)
-                st.success("Prompt strategy comparison complete!")
-        
-        if not st.session_state.comparison_data.empty:
-            st.subheader("Prompt Strategy Comparison Table")
-            st.markdown("--- PROMPT STRATEGY COMPARISON ---")
-            st.dataframe(st.session_state.comparison_data)
+                    st.session_state.comparison_data = pd.DataFrame(
+                        comparison).T.astype(str)
+                    st.session_state.prompts_used = prompts_used
+                    st.success(
+                        "Prompt strategy comparison complete!")
+            if st.session_state.comparison_data is not None:
+                st.subheader("Prompt Strategy Comparison Results")
+                st.markdown(
+                    "--- Prompt Strategy Comparison Table ---")
+                st.dataframe(st.session_state.comparison_data)
 
-            st.subheader("Compression Ratio Bar Chart (V6)")
-            try:
-                cr_data = st.session_state.comparison_data['compression_ratio'].str.replace('%', '').astype(float) / 100
-                fig_cr, ax_cr = plt.subplots(figsize=(10, 5))
-                cr_data.plot(kind='bar', ax=ax_cr, color=['skyblue', 'lightcoral', 'lightgreen'])
-                ax_cr.set_title(f'Compression Ratio by Prompt Strategy for {st.session_state.selected_transcript}')
-                ax_cr.set_ylabel('Compression Ratio')
-                ax_cr.set_ylim(0, 1)
-                for i, v in enumerate(cr_data):
-                    ax_cr.text(i, v + 0.02, f'{v:.2%}', ha='center', va='bottom')
-                st.pyplot(fig_cr)
-            except Exception as e:
-                st.error(f"Error plotting compression ratio: {e}")
-        
-        st.markdown(f"""
-        The **Prompt Strategy Comparison** table clearly illustrates the superior performance of the 'structured' and 'few_shot' strategies over the 'naive' approach. The structured prompt typically achieves higher section coverage, lower hallucination rates, and better information retention, while maintaining a good compression ratio. This reinforces the principle that **the quality of the instruction determines the quality of the output.** For an investment bank, using structured prompts becomes the standard to ensure consistent, accurate, and comprehensive analyst briefs.
-        """)
+            st.markdown(f"""
+                The **Prompt Strategy Comparison** table clearly illustrates the superior performance of the 'structured' and 'few_shot' strategies over the 'naive' approach. The structured prompt typically achieves higher section coverage, lower hallucination rates, and better information retention, while maintaining a good compression ratio. This reinforces the principle that **the quality of the instruction determines the quality of the output.** For an investment bank, using structured prompts becomes the standard to ensure consistent, accurate, and comprehensive analyst briefs.
+                """)
+    with tab6:
+        st.subheader(
+            "Temperature Calibration Experiment (Consistency)")
+        if st.button(
+            "Run Temperature Consistency Experiment", key="run_temp_exp_btn"):
+            if not client:
+                st.error(
+                    "Please enter your OpenAI API key in the sidebar to use this feature.")
+            else:
+                with st.spinner("Running temperature consistency experiment... This involves multiple LLM calls."):
+                    temperatures = [0.0, 0.2, 0.5, 0.8, 1.0]
+                    temperature_consistency_results = {}
+                    for temp in temperatures:
+                        try:
+                            messages = [
+                                {"role": "system", "content": SYSTEM_PROMPT},
+                                {"role": "user", "content": TASK_PROMPT.format(
+                                    transcript=selected_transcript_content)}
+                            ]
 
-        st.subheader("Temperature Calibration Experiment (Consistency) (V2 Temperature Consistency Plot)")
-        if st.button("Run Temperature Consistency Experiment", key="run_temp_exp_btn"):
-            with st.spinner("Running temperature consistency experiment... This involves multiple LLM calls."):
-                temperatures = [0.0, 0.2, 0.5, 0.8, 1.0]
-                temperature_consistency_results = {}
-                for temp in temperatures:
-                    try:
-                        run1, _ = summarize_with_strategy(selected_transcript_content, strategy='structured', model=st.session_state.llm_model, temperature=temp)
-                        run2, _ = summarize_with_strategy(selected_transcript_content, strategy='structured', model=st.session_state.llm_model, temperature=temp)
-                        
-                        words1 = set(run1.lower().split())
-                        words2 = set(run2.lower().split())
-                        if len(words1.union(words2)) > 0:
-                            jaccard_similarity = len(words1.intersection(words2)) / len(words1.union(words2))
-                        else:
-                            jaccard_similarity = 0.0
-                        temperature_consistency_results[temp] = jaccard_similarity
-                    except Exception as e:
-                        st.warning(f"Could not run temperature experiment for temp={temp}: {e}")
-                        temperature_consistency_results[temp] = 0.0
+                            response1 = client.chat.completions.create(
+                                model=st.session_state.llm_model, messages=messages, temperature=temp, max_tokens=2000
+                            )
+                            run1 = response1.choices[0].message.content
 
-                st.session_state.temp_consistency_results = temperature_consistency_results
-                st.success("Temperature consistency experiment complete!")
-        
-        if st.session_state.temp_consistency_results:
-            st.subheader("Temperature Consistency Results")
-            st.markdown("--- Temperature Consistency Results ---")
-            st.write(pd.Series(st.session_state.temp_consistency_results))
+                            response2 = client.chat.completions.create(
+                                model=st.session_state.llm_model, messages=messages, temperature=temp, max_tokens=2000
+                            )
+                            run2 = response2.choices[0].message.content
 
-            fig_temp, ax_temp = plt.subplots(figsize=(10, 5))
-            temps = list(st.session_state.temp_consistency_results.keys())
-            jaccards = list(st.session_state.temp_consistency_results.values())
-            ax_temp.plot(temps, jaccards, marker='o', linestyle='-', color='teal')
-            ax_temp.set_title(f'Jaccard Similarity vs. Temperature for {st.session_state.selected_transcript} (Structured Summary)')
-            ax_temp.set_xlabel('Temperature')
-            ax_temp.set_ylabel('Jaccard Similarity')
-            ax_temp.set_ylim(0, 1.1)
-            for i, txt in enumerate(jaccards):
-                ax_temp.annotate(f'{txt:.3f}', (temps[i], jaccards[i]), textcoords="offset points", xytext=(0,5), ha='center')
-            st.pyplot(fig_temp)
-        
-        st.markdown(f"""
-        The **Temperature Calibration Experiment** demonstrates how `temperature` impacts output consistency. As `temperature` increases, the Jaccard similarity (word overlap) between two identical prompt executions decreases, indicating higher randomness. For factual financial summaries, a lower temperature (e.g., `0.2-0.3`) is preferred to ensure consistency and factual accuracy, while `0.0` is reserved strictly for numerical extraction. Higher temperatures (`0.7-1.0`) are generally unsuitable for financial tasks where factual precision is paramount, as they can introduce "creative" but incorrect information. This experiment provides clear guidelines for setting `temperature` based on the specific task (factual extraction vs. narrative summarization).
-        """)
+                            words1 = set(run1.lower().split())
+                            words2 = set(run2.lower().split())
+                            if len(words1.union(words2)) > 0:
+                                jaccard_similarity = len(words1.intersection(
+                                    words2)) / len(words1.union(words2))
+                            else:
+                                jaccard_similarity = 0.0
+                            temperature_consistency_results[temp] = jaccard_similarity
+                        except Exception as e:
+                            st.warning(
+                                f"Could not run temperature experiment for temp={temp}: {e}")
+                            temperature_consistency_results[temp] = 0.0
+
+                    st.session_state.temp_consistency_results = temperature_consistency_results
+                    st.success("Temperature consistency experiment complete!")
+
+            if st.session_state.temp_consistency_results:
+                st.subheader("Temperature Consistency Results")
+                st.markdown("--- Temperature Consistency Results ---")
+                st.write(pd.Series(st.session_state.temp_consistency_results))
+
+                fig_temp, ax_temp = plt.subplots(figsize=(10, 5))
+                temps = list(st.session_state.temp_consistency_results.keys())
+                jaccards = list(
+                    st.session_state.temp_consistency_results.values())
+                ax_temp.plot(temps, jaccards, marker='o',
+                             linestyle='-', color='teal')
+                ax_temp.set_title(
+                    f'Jaccard Similarity vs. Temperature for {st.session_state.selected_transcript} (Structured Summary)')
+                ax_temp.set_xlabel('Temperature')
+                ax_temp.set_ylabel('Jaccard Similarity')
+                ax_temp.set_ylim(0, 1.1)
+                for i, txt in enumerate(jaccards):
+                    ax_temp.annotate(
+                        f'{txt:.3f}', (temps[i], jaccards[i]), textcoords="offset points", xytext=(0, 5), ha='center')
+                st.pyplot(fig_temp)
+
+            st.markdown(f"""
+                The **Temperature Calibration Experiment** demonstrates how `temperature` impacts output consistency. As `temperature` increases, the Jaccard similarity (word overlap) between two identical prompt executions decreases, indicating higher randomness. For factual financial summaries, a lower temperature (e.g., `0.2-0.3`) is preferred to ensure consistency and factual accuracy, while `0.0` is reserved strictly for numerical extraction. Higher temperatures (`0.7-1.0`) are generally unsuitable for financial tasks where factual precision is paramount, as they can introduce "creative" but incorrect information. This experiment provides clear guidelines for setting `temperature` based on the specific task (factual extraction vs. narrative summarization).
+                """)
 
 elif st.session_state.current_page == "3. Hallucination Audit & Compliance":
     st.title("3. Mitigating Risk: The Hallucination Audit & Compliance Safeguard")
@@ -532,7 +758,8 @@ elif st.session_state.current_page == "3. Hallucination Audit & Compliance":
     *   **Attribution error/Completeness:** LLM attributes a statement incorrectly or misses key topics.
     """)
     st.markdown(f"**Concept:** This task implements a **systematic hallucination detection** mechanism using:")
-    st.markdown(f"""
+    st.markdown(
+        f"""
     *   **Regex for Numerical Extraction:** Identifying all plausible numerical figures (e.g., "$10.5B", "28.5%", "120bps") from the summary.
     *   **Transcript Verification:** Checking if these extracted numbers (and their fuzzy matches, accounting for formatting differences) appear in the original transcript.
     *   **Keyword Verification for Guidance:** Checking for correct classification of guidance changes (raised, lowered, maintained, introduced).
@@ -540,10 +767,17 @@ elif st.session_state.current_page == "3. Hallucination Audit & Compliance":
     """)
     st.markdown(r"**Mathematical Formulation: Hallucination Rate**")
     st.markdown(r"To quantify the reliability of LLM-generated summaries, we can define a **Hallucination Rate**. This metric helps track the prevalence of unverifiable claims.")
-    st.markdown(r"$$ HallucinationRate = \frac{{\text{{Number of Flagged Items}}}}{{\text{{Number of Verified Items}} + \text{{Number of Flagged Items}}}} $$")
-    st.markdown(r"A lower hallucination rate indicates higher reliability. Target for structured prompts with GPT-4o is typically $<5\%$.")
+    st.markdown(r"""
+$$
+ HallucinationRate = \frac{{\text{{Number of Flagged Items}}}}{{\text{{Number of Verified Items}} + \text{{Number of Flagged Items}}}}
+$$
+""")
+    st.markdown(
+        r"A lower hallucination rate indicates higher reliability. Target for structured prompts with GPT-4o is typically $<5\%$.")
 
-    st.subheader(f"Run Hallucination Audit for {st.session_state.selected_transcript}")
+    st.subheader(
+        f"Run Hallucination Audit for {st.session_state.selected_transcript}")
+
     
     available_summaries = {}
     if st.session_state.selected_transcript in st.session_state.summaries:
@@ -559,53 +793,55 @@ elif st.session_state.current_page == "3. Hallucination Audit & Compliance":
     if st.session_state.audit_target_summary.replace('_', ' ').title() in available_summaries.keys():
         default_idx_audit = list(available_summaries.keys()).index(st.session_state.audit_target_summary.replace('_', ' ').title())
 
+        
     st.session_state.audit_target_summary = st.selectbox(
         "Select Summary to Audit:",
-        options=list(available_summaries.keys()),
-        index=default_idx_audit,
-        key="audit_summary_select"
+        options = list(available_summaries.keys()),
+        index = default_idx_audit,
+        key = "audit_summary_select"
     )
     
     selected_summary_key = available_summaries[st.session_state.audit_target_summary]
     summary_to_audit = st.session_state.summaries[st.session_state.selected_transcript][selected_summary_key]['summary']
-
+    selected_transcript_content = transcripts.get(st.session_state.selected_transcript, "")
+    
     if st.button(f"Run Audit for {st.session_state.audit_target_summary}", key="run_audit_btn"):
         with st.spinner("Running hallucination audit..."):
             try:
                 audit_results_dict, h_rate = hallucination_audit(summary_to_audit, selected_transcript_content)
                 if st.session_state.selected_transcript not in st.session_state.summaries:
-                     st.session_state.summaries[st.session_state.selected_transcript] = {}
+                    st.session_state.summaries[st.session_state.selected_transcript] = {}
                 st.session_state.summaries[st.session_state.selected_transcript][selected_summary_key]['audit'] = audit_results_dict
                 st.session_state.summaries[st.session_state.selected_transcript][selected_summary_key]['h_rate'] = h_rate
             except Exception as e:
                 st.error(f"Error running audit: {e}")
 
-    if st.session_state.selected_transcript in st.session_state.summaries and selected_summary_key in st.session_state.summaries[st.session_state.selected_transcript] and 'audit' in st.session_state.summaries[st.session_state.selected_transcript][selected_summary_key]:
-        st.subheader("Hallucination Audit Report (V3 Hallucination Audit Dashboard)")
-        audit_data = st.session_state.summaries[st.session_state.selected_transcript][selected_summary_key]['audit']
-        h_rate = st.session_state.summaries[st.session_state.selected_transcript][selected_summary_key]['h_rate']
+        if st.session_state.selected_transcript in st.session_state.summaries and selected_summary_key in st.session_state.summaries[st.session_state.selected_transcript] and 'audit' in st.session_state.summaries[st.session_state.selected_transcript][selected_summary_key]:
+            st.subheader("Hallucination Audit Report")
+            audit_data = st.session_state.summaries[st.session_state.selected_transcript][selected_summary_key]['audit']
+            h_rate = st.session_state.summaries[st.session_state.selected_transcript][selected_summary_key]['h_rate']
 
-        st.markdown("--- HALLUCINATION AUDIT REPORT ---")
-        st.metric("Hallucination Rate", f"{h_rate:.2f}%")
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Verified Items", len(audit_data['verified']))
-        col2.metric("Flagged Items", len(audit_data['flagged']))
-        col3.metric("Missing Topics", len(audit_data['missing']))
+            st.markdown("--- HALLUCINATION AUDIT REPORT ---")
+            st.metric("Hallucination Rate", f"{h_rate:.2f}%")
+            col1, col2, col3 = st.columns(3)
+            col1.metric("Verified Items", len(audit_data['verified']))
+            col2.metric("Flagged Items", len(audit_data['flagged']))
+            col3.metric("Missing Topics", len(audit_data['missing']))
 
-        if audit_data['flagged']:
-            with st.expander("Detailed Flagged Items (Require Manual Verification)"):
-                for item in audit_data['flagged']:
-                    st.warning(f"- {item}")
-        if audit_data['missing']:
-            with st.expander("Detailed Missing Topics (Check for Completeness)"):
-                for item in audit_data['missing']:
-                    st.info(f"- {item}")
-        
-        st.markdown(f"""
-        The hallucination audit report provides a systematic verification of the LLM-generated structured summary against the original Apple transcript. It first extracts all numbers from the summary and attempts to find them directly or fuzzily within the transcript. It also checks for the correct characterization of guidance terms and ensures essential financial topics are covered.
+            if audit_data['flagged']:
+                with st.expander("Detailed Flagged Items (Require Manual Verification)"):
+                    for item in audit_data['flagged']:
+                        st.warning(f"- {item}")
+            if audit_data['missing']:
+                with st.expander("Detailed Missing Topics (Check for Completeness)"):
+                    for item in audit_data['missing']:
+                        st.info(f"- {item}")
+            
+    st.markdown(f"""
+            The hallucination audit report provides a systematic verification of the LLM-generated structured summary against the original Apple transcript. It first extracts all numbers from the summary and attempts to find them directly or fuzzily within the transcript. It also checks for the correct characterization of guidance terms and ensures essential financial topics are covered.
 
-        The calculated hallucination rate serves as a key performance indicator for the reliability of the LLM output. A low rate (ideally below 5%) indicates that the structured prompting and anti-hallucination guardrails are effective. Any flagged items or missing topics require immediate human review, emphasizing that the analyst's role shifts from "reading" to "reviewing" and "verifying," thereby ensuring compliance with **CFA Standard V(A)**. This audit is not merely a quality check but a fundamental compliance safeguard in the deployment of AI in financial analysis.
-        """)
+            The calculated hallucination rate serves as a key performance indicator for the reliability of the LLM output. A low rate (ideally below 5%) indicates that the structured prompting and anti-hallucination guardrails are effective. Any flagged items or missing topics require immediate human review, emphasizing that the analyst's role shifts from "reading" to "reviewing" and "verifying," thereby ensuring compliance with **CFA Standard V(A)**. This audit is not merely a quality check but a fundamental compliance safeguard in the deployment of AI in financial analysis.
+            """)
 
 elif st.session_state.current_page == "4. ROI & Ethical Considerations":
     st.title("4. Quantifying Value: ROI and Ethical Considerations")
@@ -617,12 +853,19 @@ elif st.session_state.current_page == "4. ROI & Ethical Considerations":
     
     st.markdown(r"**ROI Calculation:**")
     st.markdown(r"*   **Time Saved:** 120 calls/year $\times$ (45 min reading - 5 min AI review) = 80 hours/year.")
-    st.markdown(r"*   **Analyst Cost:** Assuming $200/hour, this is an annual saving of $80 \times \$200 = \$16,000$.")
-    st.markdown(r"*   **LLM API Cost (for 30 companies, 4 quarters/year):** 30 companies $\times$ 4 quarters $\times$ \$0.045/transcript = \$5.40/year.")
+    st.markdown(
+        r"*   **Analyst Cost:** Assuming $200/hour, this is an annual saving of $80 \times \$200 = \$16,000$.")
+    st.markdown(
+        r"*   **LLM API Cost (for 30 companies, 4 quarters/year):** 30 companies $\times$ 4 quarters $\times$ \$0.045/transcript = \$5.40/year.")
     st.markdown(r"*   **ROI:** `(Time Saved Value - LLM Cost) / LLM Cost`")
-    st.markdown(r"$$ ROI = \frac{{\$16,000 - \$5.40}}{{\$5.40}} \approx 296,000\% $$")
-    st.markdown(r"This high ROI underscores the immense efficiency gains.")
-    
+    st.markdown(r"""
+$$
+ ROI = \frac{{\$16,000 - \$5.40}}{{\$5.40}} \approx 296,000\%
+$$
+""")
+    st.markdown(
+        r"This high ROI underscores the immense efficiency gains.")
+        
     st.markdown(r"**Ethical Framework (CFA Standard V(A)):**")
     st.markdown(r"The hallucination audit (Section 7) is the compliance layer. An analyst who includes an AI-generated number in a research report without verifying it against the source document has not exercised reasonable care, violating **CFA Standard V(A) – Diligence and Reasonable Basis**. The audit makes LLM summarization compliant by ensuring outputs are verifiable and auditable.")
 
@@ -634,26 +877,30 @@ elif st.session_state.current_page == "4. ROI & Ethical Considerations":
         try:
              estimated_cost_per_transcript = float(structured_metrics['cost']) if structured_metrics['cost'] != 'N/A' else 0.0
         except ValueError:
+                
              estimated_cost_per_transcript = 0.045
 
         try:
             h_rate_structured = float(structured_metrics['hallucination_rate'].replace('%', '')) if structured_metrics['hallucination_rate'] != 'N/A' else 0.0
         except ValueError:
+                
             h_rate_structured = 0.0
     else:
         # Fallback to a single structured summary if comparison not run
         if st.session_state.selected_transcript in st.session_state.summaries and 'structured' in st.session_state.summaries[st.session_state.selected_transcript] and st.session_state.summaries[st.session_state.selected_transcript]['structured']['usage']:
             usage_data = st.session_state.summaries[st.session_state.selected_transcript]['structured']['usage']
-            estimated_cost_per_transcript = get_estimated_api_cost(usage_data.prompt_tokens, usage_data.completion_tokens)
+            estimated_cost_per_transcript = get_estimated_api_cost(usage_data['prompt_tokens'], usage_data['completion_tokens'])
             h_rate_structured = st.session_state.summaries[st.session_state.selected_transcript]['structured'].get('h_rate', 0.0)
         else:
+                
             st.warning("Please run a 'structured' summary and prompt comparison/audit to get full ROI figures.")
             estimated_cost_per_transcript = 0.045 # Default from problem description
-            h_rate_structured = 0.0
+            h_rate_structured = 0.0 
 
     total_transcripts_processed = len(transcripts) if 'transcripts' in globals() else 1
     
-    # Calculate total demo cost carefully
+        
+# Calculate total demo cost carefully
     total_demo_cost = 0.0
     if not st.session_state.comparison_data.empty:
         for k, v in st.session_state.comparison_data.to_dict('index').items():
@@ -667,14 +914,19 @@ elif st.session_state.current_page == "4. ROI & Ethical Considerations":
 
     st.markdown("**1. Operational Efficiency & Cost Savings**")
     st.markdown(f"  - Total demonstration transcripts processed: {total_transcripts_processed}")
-    st.markdown(f"  - Total estimated API cost for these {total_transcripts_processed} transcripts: ${total_demo_cost:.4f}")
-    st.markdown(f"  - Average cost per structured summary: ${estimated_cost_per_transcript:.4f}")
+    st.markdown(
+        f"  - Total estimated API cost for these {total_transcripts_processed} transcripts: ${total_demo_cost:.4f}")
+    st.markdown(
+        f"  - Average cost per structured summary: ${estimated_cost_per_transcript:.4f}")
 
+        
     annual_companies = 30
     annual_quarters = 4
     projected_annual_llm_cost = annual_companies * annual_quarters * estimated_cost_per_transcript
-    st.markdown(f"  - Projected Annual LLM Cost for {annual_companies} companies (4 quarters): ${projected_annual_llm_cost:.2f}")
+    st.markdown(f"  - Projected Annual LLM Cost for\
+         {annual_companies} companies (4 quarters): ${projected_annual_llm_cost:.2f}")
 
+        
     analyst_read_time_min = 45
     ai_review_time_min = 5
     analyst_focused_review_time_min = 10
@@ -683,20 +935,25 @@ elif st.session_state.current_page == "4. ROI & Ethical Considerations":
 
     total_calls_per_year = annual_companies * annual_quarters
     projected_annual_hours_saved = total_calls_per_year * total_analyst_time_saved_per_call_hours
-    analyst_hourly_cost = 200
+    analyst_hourly_cost = 200 \
+       
     projected_annual_analyst_value_saved = projected_annual_hours_saved * analyst_hourly_cost
 
     st.markdown("**2. Projected Annual ROI**")
     st.markdown(f"  - Estimated analyst time saved per call: {total_analyst_time_saved_per_call_min:.1f} minutes")
-    st.markdown(f"  - Projected annual analyst hours saved (for {annual_companies} companies): {projected_annual_hours_saved:.1f} hours")
-    st.markdown(f"  - Projected annual value of analyst time saved: ${projected_annual_analyst_value_saved:,.2f}")
+    st.markdown(
+        f"  - Projected annual analyst hours saved (for {annual_companies} companies): {projected_annual_hours_saved:.1f} hours")
+    st.markdown(
+        f"  - Projected annual value of analyst time saved: ${projected_annual_analyst_value_saved:,.2f}")
 
+        
     if projected_annual_llm_cost > 0:
         roi = ((projected_annual_analyst_value_saved - projected_annual_llm_cost) / projected_annual_llm_cost) * 100
         st.markdown(f"  - Projected Annual ROI: {roi:,.0f}%")
     else:
         st.markdown(f"  - Projected Annual ROI: Cannot calculate (LLM Cost is zero or not available).")
 
+            
     st.markdown("**3. Ethical Considerations & Compliance (CFA Standard V(A))**")
     st.markdown(f"""
     *   LLM summarization shifts the analyst role from 'reader' to 'reviewer'.
@@ -706,9 +963,10 @@ elif st.session_state.current_page == "4. ROI & Ethical Considerations":
     *   Importance of documenting the audit process for transparency and accountability.
     """)
 
-    st.subheader("Token Cost Breakdown (V4 - Illustrative)")
+    st.subheader("Token Cost Breakdown")
     st.markdown("This chart illustrates the proportion of input vs. output tokens and associated costs.")
 
+        
     total_input_tokens = 0
     total_output_tokens = 0
 
@@ -716,10 +974,10 @@ elif st.session_state.current_page == "4. ROI & Ethical Considerations":
     for transcript_data in st.session_state.summaries.values():
         for strategy_data in transcript_data.values():
             if 'usage' in strategy_data and strategy_data['usage']:
-                total_input_tokens += strategy_data['usage'].prompt_tokens
-                total_output_tokens += strategy_data['usage'].completion_tokens
+                total_input_tokens += strategy_data['usage']['prompt_tokens']
+                total_output_tokens += strategy_data['usage']['completion_tokens']
     
-    # Add token usage for JSON extraction if available
+# Add token usage for JSON extraction if available
     for transcript_content in transcripts.values():
         try:
             if 'EXTRACTION_PROMPT' in globals():
@@ -727,6 +985,7 @@ elif st.session_state.current_page == "4. ROI & Ethical Considerations":
                     {"role": "system", "content": "You are a financial data extractor. Return only valid JSON."},
                     {"role": "user", "content": EXTRACTION_PROMPT.format(transcript=transcript_content)}
                 ]
+                        
                 enc = tiktoken.encoding_for_model(st.session_state.llm_model)
                 total_input_tokens += len(enc.encode(str(extraction_messages)))
                 total_output_tokens += 500
@@ -740,6 +999,7 @@ elif st.session_state.current_page == "4. ROI & Ethical Considerations":
         input_cost = (total_input_tokens * input_cost_per_million) / 1_000_000
         output_cost = (total_output_tokens * output_cost_per_million) / 1_000_000
         
+                      
         costs = [input_cost, output_cost]
         labels = ['Input Tokens Cost', 'Output Tokens Cost']
         
@@ -747,17 +1007,24 @@ elif st.session_state.current_page == "4. ROI & Ethical Considerations":
             fig_cost, ax_cost = plt.subplots(figsize=(8, 8))
             ax_cost.pie(costs, labels=labels, autopct='%1.1f%%', startangle=90, colors=['#66b3ff','#99ff99'])
             ax_cost.axis('equal')
+                        
             ax_cost.set_title('Proportion of LLM API Costs (Input vs. Output Tokens)')
             st.pyplot(fig_cost)
             st.markdown(f"Total Input Tokens (aggregated): {total_input_tokens:,}")
-            st.markdown(f"Total Output Tokens (aggregated): {total_output_tokens:,}")
-            st.markdown(f"Estimated Total API Cost: ${input_cost + output_cost:.4f}")
-            st.markdown(f"Annual cost projection (for 30 companies, 4 quarters/year): ${projected_annual_llm_cost:.2f}")
+            st.markdown(
+                f"Total Output Tokens (aggregated): {total_output_tokens:,}")
+            st.markdown(
+                f"Estimated Total API Cost: ${input_cost + output_cost:.4f}")
+            st.markdown(
+                f"Annual cost projection (for 30 companies, 4 quarters/year): ${projected_annual_llm_cost:.2f}")
         else:
+                
             st.info("Generate some summaries and run comparisons to see token cost breakdown.")
     else:
+                
         st.info("Generate some summaries and run comparisons to see token cost breakdown.")
 
+            
     st.markdown(f"""
     This final section quantifies the business value of integrating LLMs into the analyst workflow. We see a significant **projected annual ROI of approximately 296,000%**, primarily driven by the massive savings in analyst time, far outweighing the minimal API costs. This makes a compelling case for LLM adoption in financial institutions.
 
