@@ -11,7 +11,7 @@ from difflib import SequenceMatcher
 # Download NLTK data if not already present
 try:
     nltk.data.find('tokenizers/punkt')
-except nltk.downloader.DownloadError:
+except Exception as e:
     nltk.download('punkt')
 
 # --- Constants for LLM Prompts ---
